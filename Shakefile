@@ -1,0 +1,14 @@
+main:
+	echo "hello"
+list:
+	ls .
+	if [ 1 ];then
+		echo "dev"
+	fi
+way:
+	:
+go: main list way
+	for i in `seq 3`
+	do
+		echo ${i}
+	done
