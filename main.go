@@ -5,6 +5,11 @@ import (
 	"bytes"
 	"io/ioutil"
 	"os/exec"
+	"github.com/urfave/cli"
+	"os"
+	"html/template"
+	"io"
+	"errors"
 )
 
 type Task struct {
@@ -31,6 +36,18 @@ func TrimSpaces(str string) []string {
 	}
 	return ret
 }
+
+func ReadUntilInThisLine(str string, indexPtr *int, char byte) (string, error) {
+	var buf bytes.Buffer
+	for ; *indexPtr < len(str) && str[*indexPtr] != char; *indexPtr++ {
+		c := str[*indexPtr]
+		if c == '\n' {
+			return "", errors.New(fmt.Sprintf("'%b' was not found in this line", char))
+		}
+		buf.WriteByte(c)
+	}
+	return buf.String(), nil
+}
 func ReadUntil(str string, indexPtr *int, char byte) string {
 	var buf bytes.Buffer
 	for ; *indexPtr < len(str) && str[*indexPtr] != char; *indexPtr++ {
@@ -46,7 +63,7 @@ func ReadLine(str string, indexPtr *int) string {
 func Parse(text string) []Task {
 	var i int
 	var ret []Task
-	for i = 0; i < len(text); {
+	for ; i < len(text); {
 		name := ReadTask(text, &i)
 		deps := ReadDependencies(text, &i)
 		script := ReadScript(text, &i)
@@ -58,8 +75,15 @@ func Parse(text string) []Task {
 	}
 	return ret
 }
+
 func ReadTask(text string, indexPtr *int) string {
-	ret := ReadUntil(text, indexPtr, ':')
+	if text[*indexPtr] == '\t' {
+		panic("tab in root context")
+	}
+	ret, err := ReadUntilInThisLine(text, indexPtr, ':')
+	if err != nil {
+		panic("task definition must follow syntax. taskName: (deps1, deps2...)")
+	}
 	*indexPtr++
 	return ret
 }
@@ -83,18 +107,37 @@ func ReadScript(text string, indexPtr *int) string {
 	return buf.String()
 }
 
-func main() {
+func Action(c *cli.Context) error {
 	text, err := ioutil.ReadFile("./Shakefile")
 	if err != nil {
 		panic(err)
 	}
 	tasks := Parse(string(text))
+	mapp := map[string]Task{}
+	for _, v := range tasks {
+		mapp[v.name] = v
+	}
+	var cmds []string
+	for i := 0; i < c.NArg(); i++ {
+		cmd := c.Args().Get(i)
+		task, ok := mapp[cmd]
+		if !ok {
+			panic(fmt.Sprintf("\"%s\" was not defined", cmd))
+		}
+		cmds = append(cmds, task.name)
+	}
 	for i := range tasks {
 		val := tasks[i]
-		fmt.Printf("name: %s\n", val.name)
-		fmt.Printf("deps: %s\n", val.dependencies)
-		fmt.Printf("script:\n%s\n", val.script)
-		out, _ := exec.Command("/bin/bash", "-c", val.script).Output()
-		fmt.Println(string(out))
+	}
+}
+
+func main() {
+	app := cli.NewApp()
+	app.Name = "shake"
+	app.Usage = "make by shell"
+	app.Action = Action
+	err := app.Run(os.Args)
+	if err != nil {
+		panic(err)
 	}
 }
