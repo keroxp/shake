@@ -4,12 +4,10 @@ import (
 	"fmt"
 	"bytes"
 	"io/ioutil"
-	"os/exec"
 	"github.com/urfave/cli"
 	"os"
-	"html/template"
-	"io"
 	"errors"
+	"os/exec"
 )
 
 type Task struct {
@@ -60,18 +58,17 @@ func ReadLine(str string, indexPtr *int) string {
 	*indexPtr++
 	return line + "\n"
 }
-func Parse(text string) []Task {
-	var i int
-	var ret []Task
-	for ; i < len(text); {
+func Parse(text string) map[string]Task {
+	ret := map[string]Task{}
+	for i := 0; i < len(text); {
 		name := ReadTask(text, &i)
 		deps := ReadDependencies(text, &i)
 		script := ReadScript(text, &i)
-		ret = append(ret, Task{
+		ret[name] = Task{
 			name:         name,
 			dependencies: deps,
 			script:       script,
-		})
+		}
 	}
 	return ret
 }
@@ -107,37 +104,75 @@ func ReadScript(text string, indexPtr *int) string {
 	return buf.String()
 }
 
+func Includes(arr *[]string, str string) bool {
+	for i := 0; i < len(*arr); i++ {
+		if (*arr)[i] == str {
+			return true
+		}
+	}
+	return false
+}
+func recur(tasks map[string]Task, cmds []string, caller string, dep string) []string {
+	task, ok := tasks[dep]
+	if !ok {
+		panic(fmt.Sprintf("\"%s\" was not defined\n", dep))
+	}
+	if Includes(&cmds, dep) {
+		if len(caller) > 0 {
+			fmt.Fprintln(
+				os.Stderr,
+				fmt.Sprintf("circular dependency %s <- %s was dropped", dep, caller),
+			)
+		}
+		return cmds
+	}
+	cmds = append(cmds, dep)
+	for _, v := range task.dependencies {
+		recur(tasks, cmds, dep, v)
+	}
+	return cmds
+}
 func Action(c *cli.Context) error {
-	text, err := ioutil.ReadFile("./Shakefile")
+	file := c.String("f")
+	text, err := ioutil.ReadFile(file)
 	if err != nil {
 		panic(err)
 	}
 	tasks := Parse(string(text))
-	mapp := map[string]Task{}
-	for _, v := range tasks {
-		mapp[v.name] = v
-	}
-	var cmds []string
+	var result []string
 	for i := 0; i < c.NArg(); i++ {
 		cmd := c.Args().Get(i)
-		task, ok := mapp[cmd]
-		if !ok {
-			panic(fmt.Sprintf("\"%s\" was not defined", cmd))
+		result = recur(tasks, result, "", cmd)
+	}
+	for i := len(result) - 1; i >= 0; i-- {
+		task := result[i]
+		script := tasks[task].script
+		cmd := exec.Command("/usr/bin/env", "bash", "-c", script)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			return err
 		}
-		cmds = append(cmds, task.name)
 	}
-	for i := range tasks {
-		val := tasks[i]
-	}
+	return nil
 }
 
 func main() {
 	app := cli.NewApp()
 	app.Name = "shake"
 	app.Usage = "make by shell"
+	app.Version = "0.0.1-alpha"
 	app.Action = Action
+	app.Flags = []cli.Flag{
+		cli.StringFlag{
+			Name:  "f",
+			Value: "Shakefile",
+			Usage: "specify input Shakefile `FILE`",
+		},
+	}
 	err := app.Run(os.Args)
 	if err != nil {
-		panic(err)
+		fmt.Fprintf(os.Stderr, fmt.Sprintf("%s", err.Error()))
+		os.Exit(1)
 	}
 }
