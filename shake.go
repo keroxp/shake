@@ -8,6 +8,7 @@ import (
 	"os"
 	"errors"
 	"os/exec"
+	"github.com/apex/log"
 )
 
 type Task struct {
@@ -112,7 +113,7 @@ func Includes(arr *[]string, str string) bool {
 	}
 	return false
 }
-func recur(tasks map[string]Task, cmds []string, caller string, dep string) []string {
+func BuildCommands(tasks map[string]Task, cmds []string, caller string, dep string) []string {
 	task, ok := tasks[dep]
 	if !ok {
 		panic(fmt.Sprintf("\"%s\" was not defined\n", dep))
@@ -128,7 +129,7 @@ func recur(tasks map[string]Task, cmds []string, caller string, dep string) []st
 	}
 	cmds = append(cmds, dep)
 	for _, v := range task.dependencies {
-		recur(tasks, cmds, dep, v)
+		cmds = BuildCommands(tasks, cmds, dep, v)
 	}
 	return cmds
 }
@@ -142,8 +143,9 @@ func Action(c *cli.Context) error {
 	var result []string
 	for i := 0; i < c.NArg(); i++ {
 		cmd := c.Args().Get(i)
-		result = recur(tasks, result, "", cmd)
+		result = BuildCommands(tasks, result, "", cmd)
 	}
+	log.Debug(fmt.Sprintf("commands: %s", result))
 	for i := len(result) - 1; i >= 0; i-- {
 		task := result[i]
 		script := tasks[task].script
