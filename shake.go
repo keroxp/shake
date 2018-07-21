@@ -59,11 +59,10 @@ func ReadLine(str string, indexPtr *int) string {
 	*indexPtr++
 	return line + "\n"
 }
-func Parse(text string) map[string]Task {
+func ParseTasks(text string) map[string]Task {
 	ret := map[string]Task{}
 	for i := 0; i < len(text); {
-		name := ReadTask(text, &i)
-		deps := ReadDependencies(text, &i)
+		name, deps := ReadTask(text, &i)
 		script := ReadScript(text, &i)
 		ret[name] = Task{
 			name:         name,
@@ -74,7 +73,17 @@ func Parse(text string) map[string]Task {
 	return ret
 }
 
-func ReadTask(text string, indexPtr *int) string {
+func SkipEmptyLineAndComment(text string, indexPtr *int) {
+	if len(text) <= *indexPtr {
+		return
+	}
+	if text[*indexPtr] == '\n' || text[*indexPtr] == '#' {
+		ReadLine(text, indexPtr)
+		SkipEmptyLineAndComment(text, indexPtr)
+	}
+}
+func ReadTask(text string, indexPtr *int) (string, []string) {
+	SkipEmptyLineAndComment(text, indexPtr)
 	if text[*indexPtr] == '\t' {
 		panic("tab in root context")
 	}
@@ -83,16 +92,14 @@ func ReadTask(text string, indexPtr *int) string {
 		panic("task definition must follow syntax. taskName: (deps1, deps2...)")
 	}
 	*indexPtr++
-	return ret
-}
-
-func ReadDependencies(text string, indexPtr *int) []string {
 	line := ReadUntil(text, indexPtr, '\n')
 	*indexPtr++
-	return TrimSpaces(line)
+	deps := TrimSpaces(line)
+	return ret, deps
 }
 
 func ReadScript(text string, indexPtr *int) string {
+	SkipEmptyLineAndComment(text, indexPtr)
 	var buf bytes.Buffer
 	for ; ; {
 		if len(text) <= *indexPtr || text[*indexPtr] != '\t' {
@@ -105,48 +112,53 @@ func ReadScript(text string, indexPtr *int) string {
 	return buf.String()
 }
 
-func Includes(arr *[]string, str string) bool {
-	for i := 0; i < len(*arr); i++ {
-		if (*arr)[i] == str {
+func Includes(arr []string, str string) bool {
+	for i := 0; i < len(arr); i++ {
+		if arr[i] == str {
 			return true
 		}
 	}
 	return false
 }
-func BuildCommands(tasks map[string]Task, cmds []string, caller string, dep string) []string {
-	task, ok := tasks[dep]
-	if !ok {
-		panic(fmt.Sprintf("\"%s\" was not defined\n", dep))
-	}
-	if Includes(&cmds, dep) {
-		if len(caller) > 0 {
-			fmt.Fprintln(
-				os.Stderr,
-				fmt.Sprintf("circular dependency %s <- %s was dropped", dep, caller),
-			)
+func _BuildCommands(tasks *map[string]Task, cmds []string, caller string, deps ...string) []string {
+	for _, dep := range deps {
+		task, ok := (*tasks)[dep]
+		if !ok {
+			panic(fmt.Sprintf("\"%s\" was not defined", dep))
 		}
-		return cmds
-	}
-	cmds = append(cmds, dep)
-	for _, v := range task.dependencies {
-		cmds = BuildCommands(tasks, cmds, dep, v)
+		if Includes(cmds, dep) {
+			if len(caller) > 0 {
+				fmt.Fprintln(
+					os.Stderr,
+					fmt.Sprintf("circular dependency %s <- %s was dropped", dep, caller),
+				)
+			}
+			return cmds
+		}
+		cmds = _BuildCommands(tasks, cmds, dep, task.dependencies...)
+		cmds = append(cmds, dep)
 	}
 	return cmds
 }
+func BuildCommands(tasks *map[string]Task, deps ...string) []string {
+	var result []string
+	return _BuildCommands(tasks, result, "", deps...);
+}
+
 func Action(c *cli.Context) error {
 	file := c.String("f")
 	text, err := ioutil.ReadFile(file)
 	if err != nil {
 		panic(err)
 	}
-	tasks := Parse(string(text))
+	tasks := ParseTasks(string(text))
 	var result []string
 	for i := 0; i < c.NArg(); i++ {
 		cmd := c.Args().Get(i)
-		result = BuildCommands(tasks, result, "", cmd)
+		result = append(result, BuildCommands(&tasks, cmd)...)
 	}
 	log.Debug(fmt.Sprintf("commands: %s", result))
-	for i := len(result) - 1; i >= 0; i-- {
+	for i := 0; i < len(result); i++ {
 		task := result[i]
 		script := tasks[task].script
 		cmd := exec.Command("/usr/bin/env", "bash", "-c", script)

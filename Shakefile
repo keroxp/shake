@@ -20,12 +20,18 @@ release: build goreleaser
 	GITHUB_TOKEN=$(./shake decrypt) goreleaser --rm-dist
 decrypt:
 	openssl aes-256-cbc -d -in github_token.enc
-hello: say
+# for test
+hello: foo
 	echo "hello"
-list:
+foo:
+	echo "foo"
+list: dev
 	ls .
-	if [ 1 ];then
+dev:
+	if [ ${DEV} ];then
 		echo "dev"
+	else
+		echo "nondev"
 	fi
 way: list hello go
 	:
