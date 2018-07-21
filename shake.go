@@ -159,11 +159,19 @@ func Action(c *cli.Context) error {
 	return nil
 }
 
+func ReadVersion() string {
+	if version, err := ioutil.ReadFile("./version.txt"); err == nil {
+		return string(version)
+	} else {
+		panic(err)
+	}
+}
+
 func main() {
 	app := cli.NewApp()
 	app.Name = "shake"
 	app.Usage = "make by shell"
-	app.Version = "0.0.1-alpha"
+	app.Version = ReadVersion()
 	app.Action = Action
 	app.Flags = []cli.Flag{
 		cli.StringFlag{

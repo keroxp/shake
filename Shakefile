@@ -1,7 +1,7 @@
 build: go
 	go build shake.go
 version:
-	echo "v0.0.1-alpha2"
+	cat version.txt
 tag:
 	TAG=${RELEASE_TAG:-$(./shake version)}
 	if [ -z ${TAG} ];then
