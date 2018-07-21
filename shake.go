@@ -120,7 +120,7 @@ func Includes(arr []string, str string) bool {
 	}
 	return false
 }
-func _BuildCommands(tasks *map[string]Task, cmds []string, caller string, deps ...string) []string {
+func BuildCommandsInternal(tasks *map[string]Task, cmds []string, caller string, deps ...string) []string {
 	for _, dep := range deps {
 		task, ok := (*tasks)[dep]
 		if !ok {
@@ -133,16 +133,16 @@ func _BuildCommands(tasks *map[string]Task, cmds []string, caller string, deps .
 					fmt.Sprintf("circular dependency %s <- %s was dropped", dep, caller),
 				)
 			}
-			return cmds
+			continue
 		}
-		cmds = _BuildCommands(tasks, cmds, dep, task.dependencies...)
+		cmds = BuildCommandsInternal(tasks, cmds, dep, task.dependencies...)
 		cmds = append(cmds, dep)
 	}
 	return cmds
 }
 func BuildCommands(tasks *map[string]Task, deps ...string) []string {
 	var result []string
-	return _BuildCommands(tasks, result, "", deps...);
+	return BuildCommandsInternal(tasks, result, "", deps...);
 }
 
 func Action(c *cli.Context) error {
@@ -152,11 +152,11 @@ func Action(c *cli.Context) error {
 		panic(err)
 	}
 	tasks := ParseTasks(string(text))
-	var result []string
+	var cmds []string
 	for i := 0; i < c.NArg(); i++ {
-		cmd := c.Args().Get(i)
-		result = append(result, BuildCommands(&tasks, cmd)...)
+		cmds = append(cmds,  c.Args().Get(i))
 	}
+	result := BuildCommands(&tasks, cmds...)
 	log.Debug(fmt.Sprintf("commands: %s", result))
 	for i := 0; i < len(result); i++ {
 		task := result[i]

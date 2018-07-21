@@ -148,4 +148,12 @@ t4: t1 t2
 			t.Fatalf("%s != %s", result[i], expected[i])
 		}
 	}
+
+	result = BuildCommands(&tasks, "t2", "t3")
+	expected = []string{"t3", "t2"}
+	for i := range expected {
+		if result[i] != expected[i] {
+			t.Fatalf("%s != %s", result[i], expected[i])
+		}
+	}
 }

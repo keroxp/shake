@@ -20,8 +20,16 @@ release: build goreleaser
 	GITHUB_TOKEN=$(./shake decrypt) goreleaser --rm-dist
 decrypt:
 	openssl aes-256-cbc -d -in github_token.enc
-# for test
-hello: foo
+##
+# tasks for test
+##
+# emoji is important!
+🐳:
+	docker -v
+# multi-byte characters can be used.
+挨拶:
+	echo "こんにちは世界"
+hello: foo 挨拶
 	echo "hello"
 foo:
 	echo "foo"
