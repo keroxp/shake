@@ -4,3 +4,4 @@ Makefile
 shake
 dist
 *.enc
+cover.out
