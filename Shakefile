@@ -1,14 +1,33 @@
-main:
+main: say
 	echo "hello"
 list:
 	ls .
 	if [ 1 ];then
 		echo "dev"
 	fi
-way:
+way: list main go
 	:
 go: main list way
 	for i in `seq 3`
 	do
 		echo ${i}
 	done
+say:
+	say "hello"
+circ: circ
+	say "circular"
+build:
+	go build shake.go
+version:
+	echo "v0.0.1-alpha"
+tag:
+	TAG=${RELEASE_TAG:-$(./shake version)}
+	if [ -z ${TAG} ];then
+		echo "RELEASE_TAG is empty"
+		exit 1
+	fi
+	git tag ${TAG} | true
+release: build
+	GITHUB_TOKEN=$(./shake decrypt) goreleaser --rm-dist
+decrypt:
+	openssl aes-256-cbc -d -in github_token.enc
