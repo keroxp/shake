@@ -29,8 +29,8 @@ func TestReadLine(t *testing.T) {
 }
 
 func TestTrimSpaces(t *testing.T) {
-	result := TrimSpaces("  hoge foo  hey ")
-	expected := []string{"hoge", "foo", "hey"}
+	result := TrimSpaces("  hoge foo  hey \t way\t")
+	expected := []string{"hoge", "foo", "hey", "way"}
 	if len(result) != len(expected) {
 		t.Fatalf("result count %d doesn't equal expected %d", len(result), len(expected))
 	}

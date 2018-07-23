@@ -9,11 +9,13 @@ tag:
 		exit 1
 	fi
 	git tag ${TAG} | true
+# check if goable
 go:
 	if [ -z `which go` ];then
 		echo "can't go..."
 		exit 1
 	fi
+
 goreleaser: go
 	go get github.com/goreleaser/goreleaser
 release: build goreleaser

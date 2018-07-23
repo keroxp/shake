@@ -21,7 +21,7 @@ func TrimSpaces(str string) []string {
 	var ret []string
 	var buf bytes.Buffer
 	for i := 0; i < len(str); i++ {
-		if str[i] == ' ' {
+		if str[i] == ' ' || str[i] == '\t' {
 			if buf.Len() > 0 {
 				ret = append(ret, buf.String())
 				buf.Reset()
@@ -154,7 +154,7 @@ func Action(c *cli.Context) error {
 	tasks := ParseTasks(string(text))
 	var cmds []string
 	for i := 0; i < c.NArg(); i++ {
-		cmds = append(cmds,  c.Args().Get(i))
+		cmds = append(cmds, c.Args().Get(i))
 	}
 	result := BuildCommands(&tasks, cmds...)
 	log.Debug(fmt.Sprintf("commands: %s", result))
@@ -171,12 +171,11 @@ func Action(c *cli.Context) error {
 	return nil
 }
 
-
 func main() {
 	app := cli.NewApp()
 	app.Name = "shake"
 	app.Usage = "make by shell"
-	app.Version = "0.0.2-alpha2"
+	app.Version = "0.0.3-alpha"
 	app.Action = Action
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
