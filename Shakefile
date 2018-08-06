@@ -58,3 +58,14 @@ sh:
 	sh
 inalpine:
 	docker run -it alpine /bin/sh
+subshell:
+	select i in a b c;
+	do
+		if [ ${REPLY} = "a" ];then
+			break
+		else
+			exit 1
+		fi
+	done
+	echo $(echo hoge)
+	echo $(./shake decrypt)

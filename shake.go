@@ -9,11 +9,6 @@ import (
 	"errors"
 	"github.com/apex/log"
 	"os/exec"
-	"github.com/kr/pty"
-	"os/signal"
-	"syscall"
-	"golang.org/x/crypto/ssh/terminal"
-	"io"
 )
 
 type Task struct {
@@ -164,35 +159,16 @@ func Action(c *cli.Context) error {
 	result := BuildCommands(&tasks, cmds...)
 	log.Debug(fmt.Sprintf("commands: %s", result))
 	for i := 0; i < len(result); i++ {
-		err := func() error {
-			task := result[i]
-			script := tasks[task].script
-			cmd := exec.Command("/usr/bin/env", "bash", "-c", script)
-			ptmx, err := pty.Start(cmd)
-			if err != nil {
-				return err
-			}
-			defer func() { ptmx.Close() }()
-			ch := make(chan os.Signal, 1)
-			signal.Notify(ch, syscall.SIGWINCH)
-			go func() {
-				for range ch {
-					if err := pty.InheritSize(os.Stdin, ptmx); err != nil {
-						log.Errorf("error resizing pty: %s", err)
-					}
-				}
-			}()
-			ch <- syscall.SIGWINCH
-			oldState, err := terminal.MakeRaw(int(os.Stdin.Fd()))
-			if err != nil {
-				panic(err)
-			}
-			defer func() { _ = terminal.Restore(int(os.Stdin.Fd()), oldState) }()
-			go func() { _, _ = io.Copy(ptmx, os.Stdin) }()
-			_, _ = io.Copy(os.Stdout, ptmx)
-			return nil
-		}()
+		task := result[i]
+		script := tasks[task].script
+		cmd := exec.Command("/usr/bin/env", "bash", "-c", script)
 		if err != nil {
+			return err
+		}
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
 			return err
 		}
 	}
