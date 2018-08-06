@@ -7,8 +7,13 @@ import (
 	"github.com/urfave/cli"
 	"os"
 	"errors"
-	"os/exec"
 	"github.com/apex/log"
+	"os/exec"
+	"github.com/kr/pty"
+	"os/signal"
+	"syscall"
+	"golang.org/x/crypto/ssh/terminal"
+	"io"
 )
 
 type Task struct {
@@ -142,7 +147,7 @@ func BuildCommandsInternal(tasks *map[string]Task, cmds []string, caller string,
 }
 func BuildCommands(tasks *map[string]Task, deps ...string) []string {
 	var result []string
-	return BuildCommandsInternal(tasks, result, "", deps...);
+	return BuildCommandsInternal(tasks, result, "", deps...)
 }
 
 func Action(c *cli.Context) error {
@@ -159,12 +164,35 @@ func Action(c *cli.Context) error {
 	result := BuildCommands(&tasks, cmds...)
 	log.Debug(fmt.Sprintf("commands: %s", result))
 	for i := 0; i < len(result); i++ {
-		task := result[i]
-		script := tasks[task].script
-		cmd := exec.Command("/usr/bin/env", "bash", "-c", script)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
+		err := func() error {
+			task := result[i]
+			script := tasks[task].script
+			cmd := exec.Command("/usr/bin/env", "bash", "-c", script)
+			ptmx, err := pty.Start(cmd)
+			if err != nil {
+				return err
+			}
+			defer func() { ptmx.Close() }()
+			ch := make(chan os.Signal, 1)
+			signal.Notify(ch, syscall.SIGWINCH)
+			go func() {
+				for range ch {
+					if err := pty.InheritSize(os.Stdin, ptmx); err != nil {
+						log.Errorf("error resizing pty: %s", err)
+					}
+				}
+			}()
+			ch <- syscall.SIGWINCH
+			oldState, err := terminal.MakeRaw(int(os.Stdin.Fd()))
+			if err != nil {
+				panic(err)
+			}
+			defer func() { _ = terminal.Restore(int(os.Stdin.Fd()), oldState) }()
+			go func() { _, _ = io.Copy(ptmx, os.Stdin) }()
+			_, _ = io.Copy(os.Stdout, ptmx)
+			return nil
+		}()
+		if err != nil {
 			return err
 		}
 	}
@@ -175,7 +203,7 @@ func main() {
 	app := cli.NewApp()
 	app.Name = "shake"
 	app.Usage = "make by shell"
-	app.Version = "0.0.3-alpha"
+	app.Version = "0.1.0-alpha"
 	app.Action = Action
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
