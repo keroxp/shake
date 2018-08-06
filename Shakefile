@@ -54,3 +54,7 @@ say:
 	say "hello"
 circ: circ
 	:
+sh:
+	sh
+inalpine:
+	docker run -it alpine /bin/sh
