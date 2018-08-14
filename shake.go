@@ -41,7 +41,7 @@ func ReadUntilInThisLine(str string, indexPtr *int, char byte) (string, error) {
 	for ; *indexPtr < len(str) && str[*indexPtr] != char; *indexPtr++ {
 		c := str[*indexPtr]
 		if c == '\n' {
-			return "", errors.New(fmt.Sprintf("'%b' was not found in this line", char))
+			return "", errors.New(fmt.Sprintf("'%s' was not found in this line", string(char)))
 		}
 		buf.WriteByte(c)
 	}
