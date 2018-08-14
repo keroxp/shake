@@ -85,11 +85,12 @@ func SkipEmptyLineAndComment(text string, indexPtr *int) {
 func ReadTask(text string, indexPtr *int) (string, []string) {
 	SkipEmptyLineAndComment(text, indexPtr)
 	if text[*indexPtr] == '\t' {
-		panic("tab in root context")
+		log.Fatalf("tab in root context")
 	}
 	ret, err := ReadUntilInThisLine(text, indexPtr, ':')
 	if err != nil {
-		panic("task definition must follow syntax. taskName: (deps1, deps2...)")
+		log.Fatalf("failed to find task separator due to: %s", err)
+		panic("task definition must follow syntax. taskName: (deps1 deps2...)")
 	}
 	*indexPtr++
 	line := ReadUntil(text, indexPtr, '\n')
@@ -149,7 +150,7 @@ func Action(c *cli.Context) error {
 	file := c.String("f")
 	text, err := ioutil.ReadFile(file)
 	if err != nil {
-		panic(err)
+		log.Fatalf("failed to read %s due to: %s", file, err)
 	}
 	tasks := ParseTasks(string(text))
 	var cmds []string
@@ -163,12 +164,14 @@ func Action(c *cli.Context) error {
 		script := tasks[task].script
 		cmd := exec.Command("/usr/bin/env", "bash", "-c", script)
 		if err != nil {
+			log.Errorf("failed to execute script due to: %s", err)
 			return err
 		}
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
+			log.Errorf("failed to run command due to: %s", err)
 			return err
 		}
 	}
@@ -179,7 +182,7 @@ func main() {
 	app := cli.NewApp()
 	app.Name = "shake"
 	app.Usage = "make by shell"
-	app.Version = "0.1.0-alpha"
+	app.Version = "0.1.1-alpha"
 	app.Action = Action
 	app.Flags = []cli.Flag{
 		cli.StringFlag{
